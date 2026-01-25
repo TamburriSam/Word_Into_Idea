@@ -1,9 +1,7 @@
 "use server";
 
-import { z } from "zod";
-import { generateObject } from "ai";
-import { google } from "@ai-sdk/google";
-import { Resend } from "resend";
+import { generateResponsesFromLwow } from "@/server/lwow/engine";
+import { LetterSchema, WordsSchema } from "@/server/lwow/validation";
 
 // === Types ===
 export type RoundData = {
@@ -14,7 +12,7 @@ export type RoundData = {
 
 export type GameState = {
   round: number;
-  favoriteLetter?: string; // <--- NEW FIELD
+  favoriteLetter?: string;
   history: RoundData[];
   lastAiWords: string[];
   error?: string;
@@ -24,22 +22,22 @@ export type GameState = {
 // === Game Logic Action ===
 export async function submitExam(
   prevState: GameState,
-  formData: FormData
+  formData: FormData,
 ): Promise<GameState> {
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!apiKey) return { ...prevState, error: "Server Error: API Key missing." };
-
-  // === NEW: ROUND 0 LOGIC (Favorite Letter) ===
+  // === ROUND 0 LOGIC (Favorite Letter) ===
   if (prevState.round === 0) {
-    const letter = formData.get("letter");
+    const letterRaw = formData.get("letter");
+    const parsedLetter = LetterSchema.safeParse(
+      typeof letterRaw === "string" ? letterRaw : "",
+    );
 
-    if (!letter || typeof letter !== "string" || letter.trim().length === 0) {
+    if (!parsedLetter.success) {
       return { ...prevState, error: "Please enter a letter." };
     }
 
     return {
       round: 1,
-      favoriteLetter: letter.trim().toUpperCase(),
+      favoriteLetter: parsedLetter.data.toUpperCase(),
       history: [],
       lastAiWords: [],
       error: undefined,
@@ -47,33 +45,26 @@ export async function submitExam(
     };
   }
 
-  // === EXISTING LOGIC (Rounds 1-4) ===
-
-  // 1. Extract Words
-  const userWords: string[] = [];
-  for (let i = 0; i < 26; i++) {
-    const word = formData.get(`word-${i}`);
-    if (typeof word === "string" && word.trim().length > 0) {
-      userWords.push(word.trim());
-    }
-  }
-
-  if (userWords.length !== 26) {
+  // 1) Extract 26 words
+  const rawWords = Array.from({ length: 26 }, (_, i) =>
+    formData.get(`word-${i}`),
+  );
+  const parsedWords = WordsSchema.safeParse(
+    rawWords.map((w) => (typeof w === "string" ? w : "")),
+  );
+  if (!parsedWords.success) {
     return { ...prevState, error: "Please fill out all 26 words." };
   }
+  const userWords = parsedWords.data;
 
-  // 2. Check for End of Game (Round 4)
+  // 2) End of game after Round 4 submission (no AI run on round 4)
   if (prevState.round === 4) {
     return {
-      ...prevState, // Keep favoriteLetter
+      ...prevState,
       round: 5,
       history: [
         ...prevState.history,
-        {
-          roundNumber: 4,
-          userWords: userWords,
-          aiWords: [],
-        },
+        { roundNumber: 4, userWords, aiWords: [] },
       ],
       lastAiWords: [],
       error: undefined,
@@ -81,41 +72,42 @@ export async function submitExam(
     };
   }
 
-  // 3. AI Constraints (No Repeats)
+  // 3) Past AI words (avoid repeats)
   const pastAiWords = prevState.history.flatMap((h) => h.aiWords);
 
-  // 4. Run AI
+  // 4) Generate AI words locally (LWOW)
   try {
-    const { object } = await generateObject({
-      model: google("gemini-2.5-flash", { apiKey }),
-      schema: z.object({ responses: z.array(z.string()).length(26) }),
-      system: `
-        Round: ${prevState.round} of 4.
-        Task: Respond to the user's 26 words with single-word associations.
-        Persona: Tired student.
-        CRITICAL: Do NOT use these words: [${pastAiWords.join(", ")}]
-      `,
-      prompt: `Input words: ${userWords.join(", ")}`,
+    const aiWords = generateResponsesFromLwow({
+      cues: userWords,
+      used: pastAiWords,
+      favoriteLetter: prevState.favoriteLetter ?? "",
+      // Strategy mix: feels human without overthinking it
+      // Most of the time: direct assoc, sometimes: 2-hop
+      pTwoHop: 0.28,
     });
 
     return {
-      ...prevState, // Keep favoriteLetter
+      ...prevState,
       round: prevState.round + 1,
       history: [
         ...prevState.history,
         {
           roundNumber: prevState.round,
-          userWords: userWords,
-          aiWords: object.responses,
+          userWords,
+          aiWords,
         },
       ],
-      lastAiWords: object.responses,
+      lastAiWords: aiWords,
       error: undefined,
       isFinished: false,
     };
   } catch (e) {
     console.error(e);
-    return { ...prevState, error: "AI Error. Please try submitting again." };
+    return {
+      ...prevState,
+      error:
+        "LWOW Error. Make sure data/lwow/lwow.sqlite exists and has an associations table.",
+    };
   }
 }
 
@@ -128,7 +120,6 @@ export async function sendFeedback(formData: FormData) {
   console.log(feedback);
   console.log("------------------------------------------------");
 
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
+  await new Promise((resolve) => setTimeout(resolve, 500));
   return { success: true };
 }
