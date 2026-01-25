@@ -1,0 +1,21 @@
+### LWOW health check
+GET http://localhost:3000/api/lwow-health
+Accept: application/json
+
+### Generate 26 AI words from LWOW
+### Generate 26 AI words from LWOW
+POST http://localhost:3000/api/lwow-generate
+Content-Type: application/json
+Accept: application/json
+
+{
+  "favoriteLetter": "S",
+  "pTwoHop": 0.28,
+  "words": [
+    "ocean", "pizza", "music", "anxiety", "coffee", "winter", "cat", "dance",
+    "money", "school", "love", "anger", "sleep", "phone", "rain", "train",
+    "mirror", "fire", "garden", "future", "memory", "storm", "movie", "guitar",
+    "silence", "freedom"
+  ],
+  "used": []
+}
