@@ -3,6 +3,12 @@
 import { useFormStatus } from "react-dom";
 import { useEffect, useState } from "react";
 
+type RoundInputProps = {
+  round: number;
+  contextWords: string[];
+  formAction: (payload: FormData) => void;
+};
+
 function SubmitButton({ round }: { round: number }) {
   const { pending } = useFormStatus();
   return (
@@ -12,7 +18,11 @@ function SubmitButton({ round }: { round: number }) {
   );
 }
 
-export default function RoundInput({ round, contextWords, formAction }: any) {
+export default function RoundInput({
+  round,
+  contextWords,
+  formAction,
+}: RoundInputProps) {
   // Store the randomized alphabet in state
   const [labels, setLabels] = useState<string[]>([]);
 

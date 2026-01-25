@@ -50,11 +50,12 @@ export default function FeedbackModal() {
             <br />
 
             <div>
-              {/* formmethod="dialog" prevents submission and closes modal */}
               <button
-                type="submit"
-                formMethod="dialog"
-                onClick={() => dialogRef.current?.close()}
+                type="button"
+                onClick={() => {
+                  dialogRef.current?.close();
+                  setStatus("idle");
+                }}
               >
                 Cancel
               </button>

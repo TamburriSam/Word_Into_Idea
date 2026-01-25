@@ -35,57 +35,81 @@ export default function FinalGrid({ history }: { history: RoundData[] }) {
 
   // 3. Print Logic: Lists Only
   const handlePrintLists = () => {
-    const win = window.open("", "_blank");
+    const win = window.open("", "_blank", "noopener");
     if (win) {
-      win.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Word Lists</title></head>
-        <body>
-          <h1>Word Lists</h1>
-          <table border="1" cellpadding="10" cellspacing="0" style="width:100%; border-collapse:collapse;">
-            <thead>
-              <tr>${history
-                .map((h) => `<th>List ${h.roundNumber}</th>`)
-                .join("")}</tr>
-            </thead>
-            <tbody>
-              ${Array.from({ length: 26 })
-                .map(
-                  (_, i) => `
-                <tr>${history
-                  .map((r) => `<td>${r.userWords[i]}</td>`)
-                  .join("")}</tr>
-              `
-                )
-                .join("")}
-            </tbody>
-          </table>
-          <script>window.onload = () => window.print();</script>
-        </body>
-        </html>
-      `);
-      win.document.close();
+      win.opener = null;
+      const doc = win.document;
+      doc.open();
+      doc.write(
+        "<!DOCTYPE html><html><head><title>Word Lists</title></head><body></body></html>",
+      );
+      doc.close();
+
+      const h1 = doc.createElement("h1");
+      h1.textContent = "Word Lists";
+      doc.body.appendChild(h1);
+
+      const table = doc.createElement("table");
+      table.setAttribute("border", "1");
+      table.cellPadding = "10";
+      table.cellSpacing = "0";
+      table.style.width = "100%";
+      table.style.borderCollapse = "collapse";
+
+      const thead = doc.createElement("thead");
+      const headRow = doc.createElement("tr");
+      history.forEach((h) => {
+        const th = doc.createElement("th");
+        th.textContent = `List ${h.roundNumber}`;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = doc.createElement("tbody");
+      for (let i = 0; i < 26; i++) {
+        const tr = doc.createElement("tr");
+        history.forEach((r) => {
+          const td = doc.createElement("td");
+          td.textContent = r.userWords[i] ?? "";
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      doc.body.appendChild(table);
+
+      setTimeout(() => win.print(), 0);
     }
   };
 
   // 4. Print Logic: Prose Only
   const handlePrintProse = () => {
-    const win = window.open("", "_blank");
+    const win = window.open("", "_blank", "noopener");
     if (win) {
-      win.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Student Prose</title></head>
-        <body>
-          <h1>Student Prose</h1>
-          <hr />
-          <pre style="white-space: pre-wrap; font-family: serif; font-size: 14pt;">${prose}</pre>
-          <script>window.onload = () => window.print();</script>
-        </body>
-        </html>
-      `);
-      win.document.close();
+      win.opener = null;
+      const doc = win.document;
+      doc.open();
+      doc.write(
+        "<!DOCTYPE html><html><head><title>Student Prose</title></head><body></body></html>",
+      );
+      doc.close();
+
+      const h1 = doc.createElement("h1");
+      h1.textContent = "Student Prose";
+      doc.body.appendChild(h1);
+
+      const hr = doc.createElement("hr");
+      doc.body.appendChild(hr);
+
+      const pre = doc.createElement("pre");
+      pre.style.whiteSpace = "pre-wrap";
+      pre.style.fontFamily = "serif";
+      pre.style.fontSize = "14pt";
+      pre.textContent = prose;
+      doc.body.appendChild(pre);
+
+      setTimeout(() => win.print(), 0);
     }
   };
 
